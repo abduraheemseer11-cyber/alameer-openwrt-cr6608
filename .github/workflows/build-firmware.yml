@@ -53,7 +53,7 @@ jobs:
       - name: Build firmware
         run: |
           PACKAGES="
-            luci luci-ssl luci-theme-argon luci-app-argon-config luci-i18n-base-ar luci-compat
+            luci luci-ssl luci-theme-argon luci-i18n-base-ar luci-compat
             softethervpn5-client openvpn-openssl luci-app-openvpn eoip xl2tpd rp-pppoe-server
             lldpd olsrd batmand mesh11sd openwisp-config
             firewall4 banip luci-app-banip mwan3 luci-app-mwan3 nft-qos qos-scripts
