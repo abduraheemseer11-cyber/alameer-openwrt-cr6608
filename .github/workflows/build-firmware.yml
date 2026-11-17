@@ -37,7 +37,7 @@ jobs:
             libssl-dev xsltproc rsync wget unzip python3 zstd xz-utils imagemagick
 
       - name: Prepare branding assets
-        run: ./scripts/prepare-assets.sh
+        run: bash scripts/prepare-assets.sh
 
       - name: Download ImageBuilder
         run: |
@@ -48,7 +48,7 @@ jobs:
           mv "openwrt-imagebuilder-${OPENWRT_VERSION}-${TARGET}-${SUBTARGET}.Linux-x86_64" imagebuilder
 
       - name: Fetch Argon theme packages
-        run: ./scripts/fetch-argon.sh imagebuilder/packages
+        run: bash scripts/fetch-argon.sh imagebuilder/packages
 
       - name: Build firmware
         run: |
