@@ -7,6 +7,14 @@ on:
         description: "OpenWrt 23.05.x release (e.g. 23.05.5)"
         required: true
         default: "23.05.5"
+      include_heavy_packages:
+        description: "Also include samba4-server + softethervpn5-client (image grows to ~21 MB)"
+        type: boolean
+        default: false
+      max_size_mb:
+        description: "Warn if sysupgrade.bin is larger than this (MB)"
+        required: false
+        default: "16"
       publish_release:
         description: "Publish a GitHub Release with the images"
         type: boolean
@@ -53,15 +61,43 @@ jobs:
       - name: Build firmware
         run: |
           PACKAGES="
-            luci luci-ssl luci-theme-argon luci-i18n-base-ar luci-compat
-            softethervpn5-client openvpn-openssl luci-app-openvpn eoip xl2tpd rp-pppoe-server
+            luci luci-ssl luci-theme-argon luci-app-argon-config luci-i18n-base-ar luci-compat
+            openvpn-openssl luci-app-openvpn eoip xl2tpd rp-pppoe-server
             lldpd olsrd batmand mesh11sd openwisp-config
             firewall4 banip luci-app-banip mwan3 luci-app-mwan3 nft-qos qos-scripts
-            watchcat luci-app-watchcat tinyproxy samba4-server miniupnpd
+            watchcat luci-app-watchcat tinyproxy miniupnpd
           "
+          if [ "${{ github.event.inputs.include_heavy_packages }}" = "true" ]; then
+            PACKAGES="$PACKAGES samba4-server softethervpn5-client"
+          fi
           cd imagebuilder
           make image PROFILE="${PROFILE}" PACKAGES="$(echo $PACKAGES | xargs)" \
                FILES="$GITHUB_WORKSPACE/files" EXTRA_IMAGE_NAME="alameer"
+
+      - name: Size report (largest packages in the image)
+        if: always()
+        run: |
+          ROOT=$(ls -d imagebuilder/build_dir/target-*/root-${TARGET} 2>/dev/null | head -1)
+          [ -n "$ROOT" ] || exit 0
+          echo "### Installed size per package (uncompressed, top 25)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          for l in "$ROOT"/usr/lib/opkg/info/*.list; do
+            pkg=$(basename "$l" .list)
+            sz=$(sed "s#^#$ROOT#" "$l" | xargs -r -d '\n' stat -c %s 2>/dev/null | awk '{s+=$1} END{print s+0}')
+            echo "$sz $pkg"
+          done | sort -rn | head -25 | awk '{printf "%8.2f MB  %s\n",$1/1048576,$2}' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check sysupgrade size
+        run: |
+          MAX=${{ github.event.inputs.max_size_mb || '16' }}
+          F=$(ls imagebuilder/bin/targets/${TARGET}/${SUBTARGET}/*${PROFILE}*sysupgrade.bin)
+          SZ=$(stat -c %s "$F"); MB=$(awk "BEGIN{printf \"%.2f\", $SZ/1048576}")
+          echo "sysupgrade.bin = ${MB} MB (limit ${MAX} MB)"
+          echo "**sysupgrade.bin: ${MB} MB** (limit ${MAX} MB)" >> "$GITHUB_STEP_SUMMARY"
+          if awk "BEGIN{exit !($SZ > $MAX*1048576)}"; then
+            echo "::warning::sysupgrade.bin is ${MB} MB, above the ${MAX} MB limit"
+          fi
 
       - name: Collect artifacts
         run: |
